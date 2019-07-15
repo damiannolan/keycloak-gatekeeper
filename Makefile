@@ -26,7 +26,7 @@ build: golang
 	@mkdir -p bin
 	go build -ldflags "${LFLAGS}" -o bin/${NAME}
 
-static: golang deps
+static: golang
 	@echo "--> Compiling the static binary"
 	@mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags "-w ${LFLAGS}" -o bin/${NAME}
@@ -34,8 +34,8 @@ static: golang deps
 docker-build:
 	@echo "--> Compiling the project"
 	docker run --rm \
-		-v ${ROOT_DIR}:/go/src/github.com/${AUTHOR}/${NAME} \
-		-w /go/src/github.com/${AUTHOR}/${NAME} \
+		-v ${ROOT_DIR}:/go/src/github.com/damiannolan/keycloak-gatekeeper \
+		-w /go/src/github.com/damiannolan/keycloak-gatekeeper \
 		-e GOOS=linux golang:${GOVERSION} \
 		make static
 
@@ -54,7 +54,8 @@ docker-release:
 
 docker:
 	@echo "--> Building the docker image"
-	docker build -t ${REGISTRY}/${AUTHOR}/${NAME}:${VERSION} .
+	#docker build -t ${REGISTRY}/${AUTHOR}/${NAME}:${VERSION} .
+	docker build -t nubesnovem-docker-hosted.forge.avaya.com/keycloak-proxy:test .
 
 certs:
 	@echo "--> Generating the root CA"

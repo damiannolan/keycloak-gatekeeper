@@ -13,15 +13,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package gatekeeper
 
 import (
 	"os"
+	"testing"
 
-	"github.com/damiannolan/keycloak-gatekeeper/gatekeeper"
+	"github.com/stretchr/testify/assert"
 )
 
-func main() {
-	app := gatekeeper.NewOauthProxyApp()
-	app.Run(os.Args)
+func TestCreateStorageRedis(t *testing.T) {
+	store, err := createStorage("redis://127.0.0.1")
+	assert.NotNil(t, store)
+	assert.NoError(t, err)
+}
+
+func TestCreateStorageBoltDB(t *testing.T) {
+	store, err := createStorage("boltdb:////tmp/bolt")
+	assert.NotNil(t, store)
+	assert.NoError(t, err)
+	if store != nil {
+		os.Remove("/tmp/bolt")
+	}
+}
+
+func TestCreateStorageFail(t *testing.T) {
+	store, err := createStorage("not_there:///tmp/bolt")
+	assert.Nil(t, store)
+	assert.Error(t, err)
 }

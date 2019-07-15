@@ -13,15 +13,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package gatekeeper
 
 import (
-	"os"
+	"testing"
 
-	"github.com/damiannolan/keycloak-gatekeeper/gatekeeper"
+	"github.com/stretchr/testify/assert"
+	"github.com/urfave/cli"
 )
 
-func main() {
-	app := gatekeeper.NewOauthProxyApp()
-	app.Run(os.Args)
+func TestNewOauthProxyApp(t *testing.T) {
+	a := newOauthProxyApp()
+	assert.NotNil(t, a)
+}
+
+func TestGetCLIOptions(t *testing.T) {
+	if flags := getCommandLineOptions(); flags == nil {
+		t.Error("we should have received some flags options")
+	}
+}
+
+func TestReadOptions(t *testing.T) {
+	c := cli.NewApp()
+	c.Flags = getCommandLineOptions()
+	c.Action = func(cx *cli.Context) error {
+		parseCLIOptions(cx, &Config{})
+		return nil
+	}
+	c.Run([]string{""})
 }
