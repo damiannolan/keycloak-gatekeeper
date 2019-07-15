@@ -57,6 +57,7 @@ type oauthProxy struct {
 	metricsHandler http.Handler
 	router         http.Handler
 	server         *http.Server
+	shutdownCh     chan bool
 	store          storage
 	templates      *template.Template
 	upstream       reverseProxy
@@ -72,8 +73,8 @@ func init() {
 	prometheus.MustRegister(statusMetric)
 }
 
-// newProxy create's a new proxy from configuration
-func newProxy(config *Config) (*oauthProxy, error) {
+// NewProxy create's a new proxy from configuration
+func NewProxy(config *Config) (*oauthProxy, error) {
 	// create the service logger
 	log, err := createLogger(config)
 	if err != nil {
@@ -85,6 +86,7 @@ func newProxy(config *Config) (*oauthProxy, error) {
 		config:         config,
 		log:            log,
 		metricsHandler: prometheus.Handler(),
+		shutdownCh:     make(chan bool),
 	}
 
 	// parse the upstream endpoint
@@ -378,6 +380,7 @@ func (r *oauthProxy) Run() error {
 	}
 	r.server = server
 	r.listener = listener
+	r.waitForShutdown()
 
 	go func() {
 		r.log.Info("keycloak proxy service starting", zap.String("interface", r.config.Listen))
@@ -413,6 +416,21 @@ func (r *oauthProxy) Run() error {
 	}
 
 	return nil
+}
+
+func (r *oauthProxy) waitForShutdown() {
+	go func() {
+		<-r.shutdownCh
+		r.log.Info("Shutting down oauthProxy...")
+		if err := r.server.Shutdown(context.Background()); err != nil {
+			r.log.Error("Failed to shutdown oauthProxy", zap.Error(err))
+		}
+		close(r.shutdownCh)
+	}()
+}
+
+func (r *oauthProxy) Shutdown() {
+	r.shutdownCh <- true
 }
 
 // listenerConfig encapsulate listener options

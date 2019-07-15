@@ -28,7 +28,7 @@ import (
 
 // NewOauthProxyApp creates a new cli application and runs it
 func NewOauthProxyApp() *cli.App {
-	config := newDefaultConfig()
+	config := NewDefaultConfig()
 	app := cli.NewApp()
 	app.Name = prog
 	app.Usage = description
@@ -49,7 +49,7 @@ func NewOauthProxyApp() *cli.App {
 		configFile := cx.String("config")
 		// step: do we have a configuration file?
 		if configFile != "" {
-			if err := readConfigFile(configFile, config); err != nil {
+			if err := ReadConfigFile(configFile, config); err != nil {
 				return printError("unable to read the configuration file: %s, error: %s", configFile, err.Error())
 			}
 		}
@@ -60,12 +60,12 @@ func NewOauthProxyApp() *cli.App {
 		}
 
 		// step: validate the configuration
-		if err := config.isValid(); err != nil {
+		if err := config.IsValid(); err != nil {
 			return printError(err.Error())
 		}
 
 		// step: create the proxy
-		proxy, err := newProxy(config)
+		proxy, err := NewProxy(config)
 		if err != nil {
 			return printError(err.Error())
 		}
@@ -89,7 +89,7 @@ func NewOauthProxyApp() *cli.App {
 // getCommandLineOptions builds the command line options by reflecting the Config struct and extracting
 // the tagged information
 func getCommandLineOptions() []cli.Flag {
-	defaults := newDefaultConfig()
+	defaults := NewDefaultConfig()
 	var flags []cli.Flag
 	count := reflect.TypeOf(Config{}).NumField()
 	for i := 0; i < count; i++ {

@@ -25,8 +25,8 @@ import (
 	"time"
 )
 
-// newDefaultConfig returns a initialized config
-func newDefaultConfig() *Config {
+// NewDefaultConfig returns a initialized config
+func NewDefaultConfig() *Config {
 	var hostnames []string
 	if name, err := os.Hostname(); err == nil {
 		hostnames = append(hostnames, name)
@@ -81,8 +81,8 @@ func (r *Config) WithOAuthURI(uri string) string {
 	return fmt.Sprintf("%s/%s", r.OAuthURI, uri)
 }
 
-// isValid validates if the config is valid
-func (r *Config) isValid() error {
+// IsValid validates if the config is valid
+func (r *Config) IsValid() error {
 	if r.Listen == "" {
 		return errors.New("you have not specified the listening interface")
 	}

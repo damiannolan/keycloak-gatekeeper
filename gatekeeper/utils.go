@@ -128,7 +128,7 @@ func getRequestHostURL(r *http.Request) string {
 }
 
 // readConfigFile reads and parses the configuration file
-func readConfigFile(filename string, config *Config) error {
+func ReadConfigFile(filename string, config *Config) error {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
