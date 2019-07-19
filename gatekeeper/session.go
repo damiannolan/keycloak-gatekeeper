@@ -26,7 +26,7 @@ import (
 )
 
 // getIdentity retrieves the user identity from a request, either from a session cookie or a bearer token
-func (r *oauthProxy) getIdentity(req *http.Request) (*userContext, error) {
+func (r *OAuthProxy) getIdentity(req *http.Request) (*userContext, error) {
 	var isBearer bool
 	// step: check for a bearer token or cookie with jwt token
 	access, isBearer, err := getTokenInRequest(req, r.config.CookieAccessName)
@@ -58,7 +58,7 @@ func (r *oauthProxy) getIdentity(req *http.Request) (*userContext, error) {
 }
 
 // getRefreshTokenFromCookie returns the refresh token from the cookie if any
-func (r *oauthProxy) getRefreshTokenFromCookie(req *http.Request) (string, error) {
+func (r *OAuthProxy) getRefreshTokenFromCookie(req *http.Request) (string, error) {
 	token, err := getTokenInCookie(req, r.config.CookieRefreshName)
 	if err != nil {
 		return "", err

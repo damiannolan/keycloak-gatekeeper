@@ -54,7 +54,7 @@ func filterCookies(req *http.Request, filter []string) error {
 }
 
 // revokeProxy is responsible to stopping the middleware from proxying the request
-func (r *oauthProxy) revokeProxy(w http.ResponseWriter, req *http.Request) context.Context {
+func (r *OAuthProxy) revokeProxy(w http.ResponseWriter, req *http.Request) context.Context {
 	var scope *RequestScope
 	sc := req.Context().Value(contextScopeName)
 	switch sc {
@@ -69,7 +69,7 @@ func (r *oauthProxy) revokeProxy(w http.ResponseWriter, req *http.Request) conte
 }
 
 // accessForbidden redirects the user to the forbidden page
-func (r *oauthProxy) accessForbidden(w http.ResponseWriter, req *http.Request) context.Context {
+func (r *OAuthProxy) accessForbidden(w http.ResponseWriter, req *http.Request) context.Context {
 	w.WriteHeader(http.StatusForbidden)
 	// are we using a custom http template for 403?
 	if r.config.hasCustomForbiddenPage() {
@@ -83,14 +83,14 @@ func (r *oauthProxy) accessForbidden(w http.ResponseWriter, req *http.Request) c
 }
 
 // redirectToURL redirects the user and aborts the context
-func (r *oauthProxy) redirectToURL(url string, w http.ResponseWriter, req *http.Request, statusCode int) context.Context {
+func (r *OAuthProxy) redirectToURL(url string, w http.ResponseWriter, req *http.Request, statusCode int) context.Context {
 	http.Redirect(w, req, url, statusCode)
 
 	return r.revokeProxy(w, req)
 }
 
 // redirectToAuthorization redirects the user to authorization handler
-func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Request) context.Context {
+func (r *OAuthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Request) context.Context {
 	if r.config.NoRedirects {
 		w.WriteHeader(http.StatusUnauthorized)
 		return r.revokeProxy(w, req)
@@ -114,7 +114,7 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
 }
 
 // getAccessCookieExpiration calucates the expiration of the access token cookie
-func (r *oauthProxy) getAccessCookieExpiration(token jose.JWT, refresh string) time.Duration {
+func (r *OAuthProxy) getAccessCookieExpiration(token jose.JWT, refresh string) time.Duration {
 	// notes: by default the duration of the access token will be the configuration option, if
 	// however we can decode the refresh token, we will set the duration to the duraction of the
 	// refresh token

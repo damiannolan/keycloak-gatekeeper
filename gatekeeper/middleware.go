@@ -68,7 +68,7 @@ func entrypointMiddleware(next http.Handler) http.Handler {
 }
 
 // requestIDMiddleware is responsible for adding a request id if none found
-func (r *oauthProxy) requestIDMiddleware(header string) func(http.Handler) http.Handler {
+func (r *OAuthProxy) requestIDMiddleware(header string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			if v := req.Header.Get(header); v == "" {
@@ -81,7 +81,7 @@ func (r *oauthProxy) requestIDMiddleware(header string) func(http.Handler) http.
 }
 
 // loggingMiddleware is a custom http logger
-func (r *oauthProxy) loggingMiddleware(next http.Handler) http.Handler {
+func (r *OAuthProxy) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		resp := w.(middleware.WrapResponseWriter)
@@ -98,7 +98,7 @@ func (r *oauthProxy) loggingMiddleware(next http.Handler) http.Handler {
 }
 
 // authenticationMiddleware is responsible for verifying the access token
-func (r *oauthProxy) authenticationMiddleware(resource *Resource) func(http.Handler) http.Handler {
+func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			clientIP := req.RemoteAddr
@@ -227,7 +227,7 @@ func (r *oauthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 }
 
 // checkClaim checks whether claim in userContext matches claimName, match. It can be String or Strings claim.
-func (r *oauthProxy) checkClaim(user *userContext, claimName string, match *regexp.Regexp, resourceURL string) bool {
+func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *regexp.Regexp, resourceURL string) bool {
 	errFields := []zapcore.Field{
 		zap.String("claim", claimName),
 		zap.String("access", "denied"),
@@ -286,7 +286,7 @@ func (r *oauthProxy) checkClaim(user *userContext, claimName string, match *rege
 }
 
 // admissionMiddleware is responsible checking the access token against the protected resource
-func (r *oauthProxy) admissionMiddleware(resource *Resource) func(http.Handler) http.Handler {
+func (r *OAuthProxy) admissionMiddleware(resource *Resource) func(http.Handler) http.Handler {
 	claimMatches := make(map[string]*regexp.Regexp)
 	for k, v := range r.config.MatchClaims {
 		claimMatches[k] = regexp.MustCompile(v)
@@ -346,7 +346,7 @@ func (r *oauthProxy) admissionMiddleware(resource *Resource) func(http.Handler) 
 }
 
 // responseHeaderMiddleware is responsible for adding response headers
-func (r *oauthProxy) responseHeaderMiddleware(headers map[string]string) func(http.Handler) http.Handler {
+func (r *OAuthProxy) responseHeaderMiddleware(headers map[string]string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			// @step: inject any custom response headers
@@ -360,7 +360,7 @@ func (r *oauthProxy) responseHeaderMiddleware(headers map[string]string) func(ht
 }
 
 // identityHeadersMiddleware is responsible for add the authentication headers for the upstream
-func (r *oauthProxy) identityHeadersMiddleware(custom []string) func(http.Handler) http.Handler {
+func (r *OAuthProxy) identityHeadersMiddleware(custom []string) func(http.Handler) http.Handler {
 	customClaims := make(map[string]string)
 	for _, x := range custom {
 		customClaims[x] = fmt.Sprintf("X-Auth-%s", toHeader(x))
@@ -408,7 +408,7 @@ func (r *oauthProxy) identityHeadersMiddleware(custom []string) func(http.Handle
 }
 
 // securityMiddleware performs numerous security checks on the request
-func (r *oauthProxy) securityMiddleware(next http.Handler) http.Handler {
+func (r *OAuthProxy) securityMiddleware(next http.Handler) http.Handler {
 	r.log.Info("enabling the security filter middleware")
 	secure := secure.New(secure.Options{
 		AllowedHosts:          r.config.Hostnames,

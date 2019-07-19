@@ -26,8 +26,8 @@ import (
 	"github.com/urfave/cli"
 )
 
-// NewOauthProxyApp creates a new cli application and runs it
-func NewOauthProxyApp() *cli.App {
+// NewOAuthProxyApp creates a new cli application and runs it
+func NewOAuthProxyApp() *cli.App {
 	config := NewDefaultConfig()
 	app := cli.NewApp()
 	app.Name = prog

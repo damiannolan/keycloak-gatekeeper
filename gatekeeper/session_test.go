@@ -63,7 +63,7 @@ func TestGetIndentity(t *testing.T) {
 }
 
 func TestGetTokenInRequest(t *testing.T) {
-	defaultName := newDefaultConfig().CookieAccessName
+	defaultName := NewDefaultConfig().CookieAccessName
 	token := newTestToken("test").getToken()
 	cs := []struct {
 		Token    string

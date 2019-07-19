@@ -46,7 +46,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type oauthProxy struct {
+type OAuthProxy struct {
 	client         *oidc.Client
 	config         *Config
 	endpoint       *url.URL
@@ -74,7 +74,7 @@ func init() {
 }
 
 // NewProxy create's a new proxy from configuration
-func NewProxy(config *Config) (*oauthProxy, error) {
+func NewProxy(config *Config) (*OAuthProxy, error) {
 	// create the service logger
 	log, err := createLogger(config)
 	if err != nil {
@@ -82,7 +82,7 @@ func NewProxy(config *Config) (*oauthProxy, error) {
 	}
 
 	log.Info("starting the service", zap.String("prog", prog), zap.String("author", author), zap.String("version", version))
-	svc := &oauthProxy{
+	svc := &OAuthProxy{
 		config:         config,
 		log:            log,
 		metricsHandler: prometheus.Handler(),
@@ -154,7 +154,7 @@ func createLogger(config *Config) (*zap.Logger, error) {
 }
 
 // createReverseProxy creates a reverse proxy
-func (r *oauthProxy) createReverseProxy() error {
+func (r *OAuthProxy) createReverseProxy() error {
 	r.log.Info("enabled reverse proxy mode, upstream url", zap.String("url", r.config.Upstream))
 	if err := r.createUpstreamProxy(r.endpoint); err != nil {
 		return err
@@ -287,7 +287,7 @@ func (r *oauthProxy) createReverseProxy() error {
 }
 
 // createForwardingProxy creates a forwarding proxy
-func (r *oauthProxy) createForwardingProxy() error {
+func (r *OAuthProxy) createForwardingProxy() error {
 	r.log.Info("enabling forward signing mode, listening on", zap.String("interface", r.config.Listen))
 
 	if r.config.SkipUpstreamTLSVerify {
@@ -351,7 +351,7 @@ func (r *oauthProxy) createForwardingProxy() error {
 }
 
 // Run starts the proxy service
-func (r *oauthProxy) Run() error {
+func (r *OAuthProxy) Run() error {
 	listener, err := r.createHTTPListener(listenerConfig{
 		ca:                  r.config.TLSCaCertificate,
 		certificate:         r.config.TLSCertificate,
@@ -418,18 +418,18 @@ func (r *oauthProxy) Run() error {
 	return nil
 }
 
-func (r *oauthProxy) waitForShutdown() {
+func (r *OAuthProxy) waitForShutdown() {
 	go func() {
 		<-r.shutdownCh
-		r.log.Info("Shutting down oauthProxy...")
+		r.log.Info("Shutting down OAuthProxy...")
 		if err := r.server.Shutdown(context.Background()); err != nil {
-			r.log.Error("Failed to shutdown oauthProxy", zap.Error(err))
+			r.log.Error("Failed to shutdown OAuthProxy", zap.Error(err))
 		}
 		close(r.shutdownCh)
 	}()
 }
 
-func (r *oauthProxy) Shutdown() {
+func (r *OAuthProxy) Shutdown() {
 	r.shutdownCh <- true
 }
 
@@ -453,7 +453,7 @@ type listenerConfig struct {
 var ErrHostNotConfigured = errors.New("acme/autocert: host not configured")
 
 // createHTTPListener is responsible for creating a listening socket
-func (r *oauthProxy) createHTTPListener(config listenerConfig) (net.Listener, error) {
+func (r *OAuthProxy) createHTTPListener(config listenerConfig) (net.Listener, error) {
 	var listener net.Listener
 	var err error
 
@@ -568,7 +568,7 @@ func (r *oauthProxy) createHTTPListener(config listenerConfig) (net.Listener, er
 }
 
 // createUpstreamProxy create a reverse http proxy from the upstream
-func (r *oauthProxy) createUpstreamProxy(upstream *url.URL) error {
+func (r *OAuthProxy) createUpstreamProxy(upstream *url.URL) error {
 	dialer := (&net.Dialer{
 		KeepAlive: r.config.UpstreamKeepaliveTimeout,
 		Timeout:   r.config.UpstreamTimeout,
@@ -639,7 +639,7 @@ func (r *oauthProxy) createUpstreamProxy(upstream *url.URL) error {
 }
 
 // createTemplates loads the custom template
-func (r *oauthProxy) createTemplates() error {
+func (r *OAuthProxy) createTemplates() error {
 	var list []string
 
 	if r.config.SignInPage != "" {
@@ -662,7 +662,7 @@ func (r *oauthProxy) createTemplates() error {
 
 // newOpenIDClient initializes the openID configuration, note: the redirection url is deliberately left blank
 // in order to retrieve it from the host header on request
-func (r *oauthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http.Client, error) {
+func (r *OAuthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http.Client, error) {
 	var err error
 	var config oidc.ProviderConfig
 
@@ -737,6 +737,6 @@ func (r *oauthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http
 }
 
 // Render implements the echo Render interface
-func (r *oauthProxy) Render(w io.Writer, name string, data interface{}) error {
+func (r *OAuthProxy) Render(w io.Writer, name string, data interface{}) error {
 	return r.templates.ExecuteTemplate(w, name, data)
 }

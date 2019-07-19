@@ -565,7 +565,7 @@ redirection_url: http://127.0.0.1:3000
 		file := writeFakeConfigFile(t, test.Content)
 
 		config := new(Config)
-		err := readConfigFile(file.Name(), config)
+		err := ReadConfigFile(file.Name(), config)
 		if test.Ok && err != nil {
 			os.Remove(file.Name())
 			t.Errorf("test case %d should not have failed, config: %v, error: %s", i, config, err)

@@ -69,7 +69,7 @@ type fakeRequest struct {
 type fakeProxy struct {
 	config  *Config
 	idp     *fakeAuthServer
-	proxy   *oauthProxy
+	proxy   *OAuthProxy
 	cookies map[string]*http.Cookie
 }
 
@@ -82,7 +82,7 @@ func newFakeProxy(c *Config) *fakeProxy {
 	c.DiscoveryURL = auth.getLocation()
 	c.RevocationEndpoint = auth.getRevocationURL()
 	c.Verbose = true
-	proxy, err := newProxy(c)
+	proxy, err := NewProxy(c)
 	if err != nil {
 		panic("failed to create fake proxy service, error: " + err.Error())
 	}

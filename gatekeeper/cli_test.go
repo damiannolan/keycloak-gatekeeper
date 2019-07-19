@@ -23,7 +23,7 @@ import (
 )
 
 func TestNewOauthProxyApp(t *testing.T) {
-	a := newOauthProxyApp()
+	a := NewOAuthProxyApp()
 	assert.NotNil(t, a)
 }
 

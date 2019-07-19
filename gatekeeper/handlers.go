@@ -37,7 +37,7 @@ import (
 )
 
 // getRedirectionURL returns the redirectionURL for the oauth flow
-func (r *oauthProxy) getRedirectionURL(w http.ResponseWriter, req *http.Request) string {
+func (r *OAuthProxy) getRedirectionURL(w http.ResponseWriter, req *http.Request) string {
 	var redirect string
 	switch r.config.RedirectionURL {
 	case "":
@@ -59,7 +59,7 @@ func (r *oauthProxy) getRedirectionURL(w http.ResponseWriter, req *http.Request)
 }
 
 // oauthAuthorizationHandler is responsible for performing the redirection to oauth provider
-func (r *oauthProxy) oauthAuthorizationHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) oauthAuthorizationHandler(w http.ResponseWriter, req *http.Request) {
 	if r.config.SkipTokenVerification {
 		w.WriteHeader(http.StatusNotAcceptable)
 		return
@@ -97,7 +97,7 @@ func (r *oauthProxy) oauthAuthorizationHandler(w http.ResponseWriter, req *http.
 }
 
 // oauthCallbackHandler is responsible for handling the response from oauth service
-func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Request) {
 	if r.config.SkipTokenVerification {
 		w.WriteHeader(http.StatusNotAcceptable)
 		return
@@ -216,7 +216,7 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 }
 
 // loginHandler provide's a generic endpoint for clients to perform a user_credentials login to the provider
-func (r *oauthProxy) loginHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) loginHandler(w http.ResponseWriter, req *http.Request) {
 	errorMsg, code, err := func() (string, int, error) {
 		if !r.config.EnableLoginHandler {
 			return "attempt to login when login handler is disabled", http.StatusNotImplemented, errors.New("login handler disabled")
@@ -282,7 +282,7 @@ func emptyHandler(w http.ResponseWriter, req *http.Request) {}
 //  - if it's just a access token, the cookie is deleted
 //  - if the user has a refresh token, the token is invalidated by the provider
 //  - optionally, the user can be redirected by to a url
-func (r *oauthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 	// @check if the redirection is there
 	var redirectURL string
 	for k := range req.URL.Query() {
@@ -398,7 +398,7 @@ func (r *oauthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 // expirationHandler checks if the token has expired
-func (r *oauthProxy) expirationHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) expirationHandler(w http.ResponseWriter, req *http.Request) {
 	user, err := r.getIdentity(req)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -413,7 +413,7 @@ func (r *oauthProxy) expirationHandler(w http.ResponseWriter, req *http.Request)
 }
 
 // tokenHandler display access token to screen
-func (r *oauthProxy) tokenHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) tokenHandler(w http.ResponseWriter, req *http.Request) {
 	user, err := r.getIdentity(req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -424,14 +424,14 @@ func (r *oauthProxy) tokenHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 // healthHandler is a health check handler for the service
-func (r *oauthProxy) healthHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) healthHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set(versionHeader, getVersion())
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK\n"))
 }
 
 // debugHandler is responsible for providing the pprof
-func (r *oauthProxy) debugHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) debugHandler(w http.ResponseWriter, req *http.Request) {
 	name := chi.URLParam(req, "name")
 	switch req.Method {
 	case http.MethodGet:
@@ -466,7 +466,7 @@ func (r *oauthProxy) debugHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 // proxyMetricsHandler forwards the request into the prometheus handler
-func (r *oauthProxy) proxyMetricsHandler(w http.ResponseWriter, req *http.Request) {
+func (r *OAuthProxy) proxyMetricsHandler(w http.ResponseWriter, req *http.Request) {
 	if r.config.LocalhostMetrics {
 		if !net.ParseIP(realIP(req)).IsLoopback() {
 			r.accessForbidden(w, req)
@@ -477,7 +477,7 @@ func (r *oauthProxy) proxyMetricsHandler(w http.ResponseWriter, req *http.Reques
 }
 
 // retrieveRefreshToken retrieves the refresh token from store or cookie
-func (r *oauthProxy) retrieveRefreshToken(req *http.Request, user *userContext) (token, ecrypted string, err error) {
+func (r *OAuthProxy) retrieveRefreshToken(req *http.Request, user *userContext) (token, ecrypted string, err error) {
 	switch r.useStore() {
 	case true:
 		token, err = r.GetRefreshToken(user.token)

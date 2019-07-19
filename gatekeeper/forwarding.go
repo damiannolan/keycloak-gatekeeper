@@ -26,7 +26,7 @@ import (
 )
 
 // proxyMiddleware is responsible for handles reverse proxy request to the upstream endpoint
-func (r *oauthProxy) proxyMiddleware(next http.Handler) http.Handler {
+func (r *OAuthProxy) proxyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		next.ServeHTTP(w, req)
 
@@ -74,7 +74,7 @@ func (r *oauthProxy) proxyMiddleware(next http.Handler) http.Handler {
 }
 
 // forwardProxyHandler is responsible for signing outbound requests
-func (r *oauthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
+func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 	client, err := r.client.OAuthClient()
 	if err != nil {
 		r.log.Fatal("failed to create oauth client", zap.Error(err))

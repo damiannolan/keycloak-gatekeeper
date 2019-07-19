@@ -20,7 +20,7 @@ import (
 )
 
 func TestNewDefaultConfig(t *testing.T) {
-	if config := newDefaultConfig(); config == nil {
+	if config := NewDefaultConfig(); config == nil {
 		t.Error("we should have received a config")
 	}
 }
@@ -190,7 +190,7 @@ func TestIsConfig(t *testing.T) {
 	}
 
 	for i, c := range tests {
-		if err := c.Config.isValid(); err != nil && c.Ok {
+		if err := c.Config.IsValid(); err != nil && c.Ok {
 			t.Errorf("test case %d, the config should not have errored, error: %s", i, err)
 		}
 	}

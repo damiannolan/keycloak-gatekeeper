@@ -71,7 +71,7 @@ func TestNewKeycloakProxy(t *testing.T) {
 	cfg.Listen = "127.0.0.1:0"
 	cfg.ListenHTTP = ""
 
-	proxy, err := newProxy(cfg)
+	proxy, err := NewProxy(cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, proxy)
 	assert.NotNil(t, proxy.config)
@@ -436,7 +436,7 @@ func newTestService() string {
 	return u
 }
 
-func newTestProxyService(config *Config) (*oauthProxy, *fakeAuthServer, string) {
+func newTestProxyService(config *Config) (*OAuthProxy, *fakeAuthServer, string) {
 	auth := newFakeAuthServer()
 	if config == nil {
 		config = newFakeKeycloakConfig()
@@ -446,7 +446,7 @@ func newTestProxyService(config *Config) (*oauthProxy, *fakeAuthServer, string) 
 	config.Verbose = false
 	config.EnableLogging = false
 
-	proxy, err := newProxy(config)
+	proxy, err := NewProxy(config)
 	if err != nil {
 		panic("failed to create proxy service, error: " + err.Error())
 	}

@@ -22,6 +22,6 @@ import (
 )
 
 func main() {
-	app := gatekeeper.NewOauthProxyApp()
+	app := gatekeeper.NewOAuthProxyApp()
 	app.Run(os.Args)
 }
