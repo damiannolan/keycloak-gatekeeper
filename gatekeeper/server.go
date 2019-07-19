@@ -418,6 +418,17 @@ func (r *OAuthProxy) Run() error {
 	return nil
 }
 
+// Addr - Returns the OAuthProxy listener address
+func (r *OAuthProxy) Addr() net.Addr {
+	return r.listener.Addr()
+}
+
+// Shutdown - Notifies the OAuthProxy shutdownCh
+func (r *OAuthProxy) Shutdown() {
+	r.shutdownCh <- true
+}
+
+// waitForShutdown - Starts a new goroutine to block until receiving on the OAuthProxy shutdownCh
 func (r *OAuthProxy) waitForShutdown() {
 	go func() {
 		<-r.shutdownCh
@@ -427,10 +438,6 @@ func (r *OAuthProxy) waitForShutdown() {
 		}
 		close(r.shutdownCh)
 	}()
-}
-
-func (r *OAuthProxy) Shutdown() {
-	r.shutdownCh <- true
 }
 
 // listenerConfig encapsulate listener options
