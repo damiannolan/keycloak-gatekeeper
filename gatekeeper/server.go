@@ -46,6 +46,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// OAuthProxy - Bootstrapped Gatekeeper struct
 type OAuthProxy struct {
 	client         *oidc.Client
 	config         *Config
@@ -418,9 +419,9 @@ func (r *OAuthProxy) Run() error {
 	return nil
 }
 
-// Addr - Returns the OAuthProxy listener address
-func (r *OAuthProxy) Addr() net.Addr {
-	return r.listener.Addr()
+// Addr - Returns the OAuthProxy listener address as a string value
+func (r *OAuthProxy) Addr() string {
+	return r.listener.Addr().String()
 }
 
 // Shutdown - Notifies the OAuthProxy shutdownCh
