@@ -702,26 +702,10 @@ func (r *OAuthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http
 	}
 
 	// step: attempt to retrieve the provider configuration
-	completeCh := make(chan bool)
-	go func() {
-		for {
-			r.log.Info("attempting to retrieve configuration discovery url",
-				zap.String("url", r.config.DiscoveryURL),
-				zap.String("timeout", r.config.OpenIDProviderTimeout.String()))
-			if config, err = oidc.FetchProviderConfig(hc, r.config.DiscoveryURL); err == nil {
-				break // break and complete
-			}
-			r.log.Warn("failed to get provider configuration from discovery", zap.Error(err))
-			time.Sleep(time.Second * 3)
-		}
-		completeCh <- true
-	}()
-	// wait for timeout or successful retrieval
-	select {
-	case <-time.After(r.config.OpenIDProviderTimeout):
-		return nil, config, nil, errors.New("failed to retrieve the provider configuration from discovery url")
-	case <-completeCh:
-		r.log.Info("successfully retrieved openid configuration from the discovery")
+	config, err = r.retrieveProviderConfig(hc)
+	if err != nil {
+		r.log.Warn("failed to retrieve oidc configuration from provider")
+		return nil, config, nil, err
 	}
 
 	client, err := oidc.NewClient(oidc.ClientConfig{
@@ -742,6 +726,33 @@ func (r *OAuthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http
 	client.SyncProviderConfig(r.config.DiscoveryURL)
 
 	return client, config, hc, nil
+}
+
+func (r *OAuthProxy) retrieveProviderConfig(hc *http.Client) (oidc.ProviderConfig, error) {
+	var config oidc.ProviderConfig
+	var err error
+
+	timeout := time.After(r.config.OpenIDProviderTimeout)
+
+FetchLoop:
+	for {
+		select {
+		case <-timeout:
+			return config, errors.New("failed to retrieve the provider configuration from discovery url")
+		default:
+			r.log.Info("attempting to retrieve configuration discovery url",
+				zap.String("url", r.config.DiscoveryURL),
+				zap.String("timeout", r.config.OpenIDProviderTimeout.String()))
+			if config, err = oidc.FetchProviderConfig(hc, r.config.DiscoveryURL); err == nil {
+				r.log.Info("successfully retrieved openid configuration from the discovery")
+				break FetchLoop
+			}
+			r.log.Warn("failed to get provider configuration from discovery", zap.Error(err))
+			time.Sleep(time.Second * 3)
+		}
+	}
+
+	return config, nil
 }
 
 // Render implements the echo Render interface
