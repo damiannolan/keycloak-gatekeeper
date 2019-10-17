@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
 type selfSignedCertificate struct {
@@ -39,13 +39,13 @@ type selfSignedCertificate struct {
 	// privateKey is the rsa private key
 	privateKey *rsa.PrivateKey
 	// the logger for this service
-	log *zap.Logger
+	log *logrus.Logger
 	// stopCh is a channel to close off the rotation
 	cancel context.CancelFunc
 }
 
 // newSelfSignedCertificate creates and returns a self signed certificate manager
-func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *zap.Logger) (*selfSignedCertificate, error) {
+func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *logrus.Logger) (*selfSignedCertificate, error) {
 	if len(hostnames) <= 0 {
 		return nil, errors.New("no hostnames specified")
 	}
@@ -54,7 +54,7 @@ func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *zap
 	}
 
 	// @step: generate a certificate pair
-	log.Info("generating a private key for self-signed certificate", zap.String("common_name", hostnames[0]))
+	log.WithField("common_name", hostnames[0]).Info("generating a private key for self-signed certificate")
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -89,8 +89,7 @@ func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *zap
 // rotate is responsible for rotation the certificate
 func (c *selfSignedCertificate) rotate(ctx context.Context) error {
 	go func() {
-		c.log.Info("starting the self-signed certificate rotation",
-			zap.Duration("expiration", c.expiration))
+		c.log.WithField("expiration", c.expiration).Info("starting the self-signed certificate rotation")
 
 		for {
 			expires := time.Now().Add(c.expiration).Add(-5 * time.Minute)
@@ -101,7 +100,10 @@ func (c *selfSignedCertificate) rotate(ctx context.Context) error {
 				return
 			case <-time.After(ticker):
 			}
-			c.log.Info("going to sleep until required for rotation", zap.Time("expires", expires), zap.Duration("duration", expires.Sub(time.Now())))
+			c.log.WithFields(logrus.Fields{
+				"expires":  expires,
+				"duration": expires.Sub(time.Now()),
+			}).Info("going to sleep until required for rotation")
 
 			// @step: got to sleep until we need to rotate
 			time.Sleep(expires.Sub(time.Now()))

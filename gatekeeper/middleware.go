@@ -27,9 +27,8 @@ import (
 	"github.com/gambol99/go-oidc/jose"
 	"github.com/go-chi/chi/middleware"
 	uuid "github.com/satori/go.uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/unrolled/secure"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -87,13 +86,14 @@ func (r *OAuthProxy) loggingMiddleware(next http.Handler) http.Handler {
 		resp := w.(middleware.WrapResponseWriter)
 		next.ServeHTTP(resp, req)
 		addr := req.RemoteAddr
-		r.log.Info("client request",
-			zap.Duration("latency", time.Since(start)),
-			zap.Int("status", resp.Status()),
-			zap.Int("bytes", resp.BytesWritten()),
-			zap.String("client_ip", addr),
-			zap.String("method", req.Method),
-			zap.String("path", req.URL.Path))
+		r.log.WithFields(logrus.Fields{
+			"latency":   time.Since(start),
+			"status":    resp.Status(),
+			"bytes":     resp.BytesWritten(),
+			"client_ip": addr,
+			"method":    req.Method,
+			"path":      req.URL.Path,
+		}).Info("client request")
 	})
 }
 
@@ -105,7 +105,7 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 			// grab the user identity from the request
 			user, err := r.getIdentity(req)
 			if err != nil {
-				r.log.Error("no session found in request, redirecting for authorization", zap.Error(err))
+				r.log.WithError(err).Error("no session found in request, redirecting for authorization")
 				next.ServeHTTP(w, req.WithContext(r.redirectToAuthorization(w, req)))
 				return
 			}
@@ -118,10 +118,11 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 			if r.config.SkipTokenVerification {
 				r.log.Warn("skip token verification enabled, skipping verification - TESTING ONLY")
 				if user.isExpired() {
-					r.log.Error("the session has expired and verification switch off",
-						zap.String("client_ip", clientIP),
-						zap.String("username", user.name),
-						zap.String("expired_on", user.expiresAt.String()))
+					r.log.WithFields(logrus.Fields{
+						"client_ip":  clientIP,
+						"username":   user.name,
+						"expired_on": user.expiresAt.String(),
+					}).Error("the session has expired and verification switch off")
 
 					next.ServeHTTP(w, req.WithContext(r.redirectToAuthorization(w, req)))
 					return
@@ -132,9 +133,10 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 					// expired error we immediately throw an access forbidden - as there is
 					// something messed up in the token
 					if err != ErrAccessTokenExpired {
-						r.log.Error("access token failed verification",
-							zap.String("client_ip", clientIP),
-							zap.Error(err))
+						r.log.WithFields(logrus.Fields{
+							"client_ip": clientIP,
+							"error":     err,
+						}).Error("access token failed verification")
 
 						next.ServeHTTP(w, req.WithContext(r.accessForbidden(w, req)))
 						return
@@ -142,26 +144,29 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 
 					// step: check if we are refreshing the access tokens and if not re-auth
 					if !r.config.EnableRefreshTokens {
-						r.log.Error("session expired and access token refreshing is disabled",
-							zap.String("client_ip", clientIP),
-							zap.String("email", user.name),
-							zap.String("expired_on", user.expiresAt.String()))
+						r.log.WithFields(logrus.Fields{
+							"client_ip":  clientIP,
+							"email":      user.name,
+							"expired_on": user.expiresAt.String(),
+						}).Error("session expired and access token refreshing is disabled")
 
 						next.ServeHTTP(w, req.WithContext(r.redirectToAuthorization(w, req)))
 						return
 					}
 
-					r.log.Info("accces token for user has expired, attemping to refresh the token",
-						zap.String("client_ip", clientIP),
-						zap.String("email", user.email))
+					r.log.WithFields(logrus.Fields{
+						"client_ip": clientIP,
+						"email":     user.email,
+					}).Info("accces token for user has expired, attemping to refresh the token")
 
 					// step: check if the user has refresh token
 					refresh, encrypted, err := r.retrieveRefreshToken(req.WithContext(ctx), user)
 					if err != nil {
-						r.log.Error("unable to find a refresh token for user",
-							zap.String("client_ip", clientIP),
-							zap.String("email", user.email),
-							zap.Error(err))
+						r.log.WithFields(logrus.Fields{
+							"client_ip": clientIP,
+							"email":     user.email,
+							"error":     err,
+						}).Error("unable to find a refresh token for user")
 
 						next.ServeHTTP(w, req.WithContext(r.redirectToAuthorization(w, req)))
 						return
@@ -172,13 +177,14 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 					if err != nil {
 						switch err {
 						case ErrRefreshTokenExpired:
-							r.log.Warn("refresh token has expired, cannot retrieve access token",
-								zap.String("client_ip", clientIP),
-								zap.String("email", user.email))
+							r.log.WithFields(logrus.Fields{
+								"client_ip": clientIP,
+								"email":     user.email,
+							}).Warn("refresh token has expired, cannot retrieve access token")
 
 							r.clearAllCookies(req.WithContext(ctx), w)
 						default:
-							r.log.Error("failed to refresh the access token", zap.Error(err))
+							r.log.WithError(err).Error("failed to refresh the access token")
 						}
 						next.ServeHTTP(w, req.WithContext(r.redirectToAuthorization(w, req)))
 
@@ -187,16 +193,17 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 					// get the expiration of the new access token
 					expiresIn := r.getAccessCookieExpiration(token, refresh)
 
-					r.log.Info("injecting the refreshed access token cookie",
-						zap.String("client_ip", clientIP),
-						zap.String("cookie_name", r.config.CookieAccessName),
-						zap.String("email", user.email),
-						zap.Duration("expires_in", time.Until(exp)))
+					r.log.WithFields(logrus.Fields{
+						"client_ip":   clientIP,
+						"cookie_name": r.config.CookieAccessName,
+						"email":       user.email,
+						"expires_in":  time.Until(exp),
+					}).Info("injecting the refreshed access token cookie")
 
 					accessToken := token.Encode()
 					if r.config.EnableEncryptedToken {
 						if accessToken, err = encodeText(accessToken, r.config.EncryptionKey); err != nil {
-							r.log.Error("unable to encode the access token", zap.Error(err))
+							r.log.WithError(err).Error("unable to encode the access token")
 							w.WriteHeader(http.StatusInternalServerError)
 							return
 						}
@@ -207,10 +214,10 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 					if r.useStore() {
 						go func(old, new jose.JWT, encrypted string) {
 							if err := r.DeleteRefreshToken(old); err != nil {
-								r.log.Error("failed to remove old token", zap.Error(err))
+								r.log.WithError(err).Error("failed to remove old token")
 							}
 							if err := r.StoreRefreshToken(new, encrypted); err != nil {
-								r.log.Error("failed to store refresh token", zap.Error(err))
+								r.log.WithError(err).Error("failed to store refresh token")
 								return
 							}
 						}(user.token, token, encrypted)
@@ -228,15 +235,13 @@ func (r *OAuthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 
 // checkClaim checks whether claim in userContext matches claimName, match. It can be String or Strings claim.
 func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *regexp.Regexp, resourceURL string) bool {
-	errFields := []zapcore.Field{
-		zap.String("claim", claimName),
-		zap.String("access", "denied"),
-		zap.String("email", user.email),
-		zap.String("resource", resourceURL),
-	}
-
 	if _, found := user.claims[claimName]; !found {
-		r.log.Warn("the token does not have the claim", errFields...)
+		r.log.WithFields(logrus.Fields{
+			"claim":    claimName,
+			"access":   "denied",
+			"email":    user.email,
+			"resource": resourceURL,
+		}).Warn("the token does not have the claim")
 		return false
 	}
 
@@ -247,10 +252,14 @@ func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *rege
 		if match.MatchString(valueStr) {
 			return true
 		}
-		r.log.Warn("claim requirement does not match claim in token", append(errFields,
-			zap.String("issued", valueStr),
-			zap.String("required", match.String()),
-		)...)
+		r.log.WithFields(logrus.Fields{
+			"claim":    claimName,
+			"access":   "denied",
+			"email":    user.email,
+			"resource": resourceURL,
+			"issued":   valueStr,
+			"required": match.String(),
+		}).Warn("claim requirement does not match claim in token")
 
 		return false
 	}
@@ -264,24 +273,37 @@ func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *rege
 				return true
 			}
 		}
-		r.log.Warn("claim requirement does not match any element claim group in token", append(errFields,
-			zap.String("issued", fmt.Sprintf("%v", valueStrs)),
-			zap.String("required", match.String()),
-		)...)
+		r.log.WithFields(logrus.Fields{
+			"claim":    claimName,
+			"access":   "denied",
+			"email":    user.email,
+			"resource": resourceURL,
+			"issued":   valueStr,
+			"required": match.String(),
+		}).Warn("claim requirement does not match any element claim group in token")
 
 		return false
 	}
 
 	// If this fails, the claim is probably float or int.
 	if errStr != nil && errStrs != nil {
-		r.log.Error("unable to extract the claim from token (tried string and strings)", append(errFields,
-			zap.Error(errStr),
-			zap.Error(errStrs),
-		)...)
+		r.log.WithFields(logrus.Fields{
+			"claim":    claimName,
+			"access":   "denied",
+			"email":    user.email,
+			"resource": resourceURL,
+			"errStr":   errStr,
+			"errStrs":  errStrs,
+		}).Error("unable to extract the claim from token (tried string and strings)")
 		return false
 	}
 
-	r.log.Warn("unexpected error", errFields...)
+	r.log.WithFields(logrus.Fields{
+		"claim":    claimName,
+		"access":   "denied",
+		"email":    user.email,
+		"resource": resourceURL,
+	}).Warn("unexpected error")
 	return false
 }
 
@@ -304,11 +326,12 @@ func (r *OAuthProxy) admissionMiddleware(resource *Resource) func(http.Handler) 
 
 			// @step: we need to check the roles
 			if !hasAccess(resource.Roles, user.roles, !resource.RequireAnyRole) {
-				r.log.Warn("access denied, invalid roles",
-					zap.String("access", "denied"),
-					zap.String("email", user.email),
-					zap.String("resource", resource.URL),
-					zap.String("roles", resource.getRoles()))
+				r.log.WithFields(logrus.Fields{
+					"access":   "denied",
+					"email":    user.email,
+					"resource": resource.URL,
+					"roles":    resource.getRoles(),
+				}).Warn("access denied, invalid roles")
 
 				next.ServeHTTP(w, req.WithContext(r.accessForbidden(w, req)))
 				return
@@ -316,11 +339,12 @@ func (r *OAuthProxy) admissionMiddleware(resource *Resource) func(http.Handler) 
 
 			// @step: check if we have any groups, the groups are there
 			if !hasAccess(resource.Groups, user.groups, false) {
-				r.log.Warn("access denied, invalid roles",
-					zap.String("access", "denied"),
-					zap.String("email", user.email),
-					zap.String("resource", resource.URL),
-					zap.String("groups", strings.Join(resource.Groups, ",")))
+				r.log.WithFields(logrus.Fields{
+					"access":   "denied",
+					"email":    user.email,
+					"resource": resource.URL,
+					"groups":   strings.Join(resource.Groups, ","),
+				}).Warn("access denied, invalid roles")
 
 				next.ServeHTTP(w, req.WithContext(r.accessForbidden(w, req)))
 				return
@@ -334,11 +358,12 @@ func (r *OAuthProxy) admissionMiddleware(resource *Resource) func(http.Handler) 
 				}
 			}
 
-			r.log.Debug("access permitted to resource",
-				zap.String("access", "permitted"),
-				zap.String("email", user.email),
-				zap.Duration("expires", time.Until(user.expiresAt)),
-				zap.String("resource", resource.URL))
+			r.log.WithFields(logrus.Fields{
+				"access":   "permitted",
+				"email":    user.email,
+				"expires":  time.Until(user.expiresAt),
+				"resource": resource.URL,
+			}).Debug("access permitted to resource")
 
 			next.ServeHTTP(w, req)
 		})
@@ -422,7 +447,7 @@ func (r *OAuthProxy) securityMiddleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if err := secure.Process(w, req); err != nil {
-			r.log.Warn("failed security middleware", zap.Error(err))
+			r.log.WithError(err).Warn("failed security middleware")
 			next.ServeHTTP(w, req.WithContext(r.accessForbidden(w, req)))
 			return
 		}

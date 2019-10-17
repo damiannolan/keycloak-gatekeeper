@@ -22,7 +22,7 @@ import (
 
 	"github.com/gambol99/go-oidc/jose"
 	"github.com/gambol99/go-oidc/oidc"
-	"go.uber.org/zap"
+	"github.com/sirupsen/logrus"
 )
 
 // proxyMiddleware is responsible for handles reverse proxy request to the upstream endpoint
@@ -60,9 +60,9 @@ func (r *OAuthProxy) proxyMiddleware(next http.Handler) http.Handler {
 		}
 
 		if isUpgradedConnection(req) {
-			r.log.Debug("upgrading the connnection", zap.String("client_ip", req.RemoteAddr))
+			r.log.WithField("client_ip", req.RemoteAddr).Debug("upgrading the connnection")
 			if err := tryUpdateConnection(req, w, r.endpoint); err != nil {
-				r.log.Error("failed to upgrade connection", zap.Error(err))
+				r.log.WithError(err).Error("failed to upgrade connection")
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -77,7 +77,7 @@ func (r *OAuthProxy) proxyMiddleware(next http.Handler) http.Handler {
 func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 	client, err := r.client.OAuthClient()
 	if err != nil {
-		r.log.Fatal("failed to create oauth client", zap.Error(err))
+		r.log.WithError(err).Fatal("failed to create oauth client")
 	}
 	// the loop state
 	var state struct {
@@ -103,13 +103,12 @@ func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 
 			// step: do we have a access token
 			if state.login {
-				r.log.Info("requesting access token for user",
-					zap.String("username", r.config.ForwardingUsername))
+				r.log.WithField("username", r.config.ForwardingUsername).Info("requesting access token for user")
 
 				// step: login into the service
 				resp, err := client.UserCredsToken(r.config.ForwardingUsername, r.config.ForwardingPassword)
 				if err != nil {
-					r.log.Error("failed to login to authentication service", zap.Error(err))
+					r.log.WithError(err).Error("failed to login to authentication service")
 					// step: back-off and reschedule
 					<-time.After(time.Duration(5) * time.Second)
 					continue
@@ -118,7 +117,7 @@ func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 				// step: parse the token
 				token, identity, err := parseToken(resp.AccessToken)
 				if err != nil {
-					r.log.Error("failed to parse the access token", zap.Error(err))
+					r.log.WithError(err).Error("failed to parse the access token")
 					// step: we should probably hope and reschedule here
 					<-time.After(time.Duration(5) * time.Second)
 					continue
@@ -132,22 +131,25 @@ func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 				state.login = false
 				state.refresh = resp.RefreshToken
 
-				r.log.Info("successfully retrieved access token for subject",
-					zap.String("subject", state.identity.ID),
-					zap.String("email", state.identity.Email),
-					zap.String("expires", state.expiration.Format(time.RFC3339)))
+				r.log.WithFields(logrus.Fields{
+					"subject": state.identity.ID,
+					"email":   state.identity.Email,
+					"expires": state.expiration.Format(time.RFC3339),
+				}).Info("successfully retrieved access token for subject")
 
 			} else {
-				r.log.Info("access token is about to expiry",
-					zap.String("subject", state.identity.ID),
-					zap.String("email", state.identity.Email))
+				r.log.WithFields(logrus.Fields{
+					"subject": state.identity.ID,
+					"email":   state.identity.Email,
+				}).Info("access token is about to expiry")
 
 				// step: if we a have a refresh token, we need to login again
 				if state.refresh != "" {
-					r.log.Info("attempting to refresh the access token",
-						zap.String("subject", state.identity.ID),
-						zap.String("email", state.identity.Email),
-						zap.String("expires", state.expiration.Format(time.RFC3339)))
+					r.log.WithFields(logrus.Fields{
+						"subject": state.identity.ID,
+						"email":   state.identity.Email,
+						"expires": state.expiration.Format(time.RFC3339),
+					}).Info("attempting to refresh the access token")
 
 					// step: attempt to refresh the access
 					token, expiration, err := getRefreshedToken(r.client, state.refresh)
@@ -155,11 +157,12 @@ func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 						state.login = true
 						switch err {
 						case ErrRefreshTokenExpired:
-							r.log.Warn("the refresh token has expired, need to login again",
-								zap.String("subject", state.identity.ID),
-								zap.String("email", state.identity.Email))
+							r.log.WithFields(logrus.Fields{
+								"subject": state.identity.ID,
+								"email":   state.identity.Email,
+							}).Warn("the refresh token has expired, need to login again")
 						default:
-							r.log.Error("failed to refresh the access token", zap.Error(err))
+							r.log.WithError(err).Error("failed to refresh the access token")
 						}
 						continue
 					}
@@ -171,15 +174,17 @@ func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 					state.login = false
 
 					// step: add some debugging
-					r.log.Info("successfully refreshed the access token",
-						zap.String("subject", state.identity.ID),
-						zap.String("email", state.identity.Email),
-						zap.String("expires", state.expiration.Format(time.RFC3339)))
+					r.log.WithFields(logrus.Fields{
+						"subject": state.identity.ID,
+						"email":   state.identity.Email,
+						"expires": state.expiration.Format(time.RFC3339),
+					}).Info("successfully refreshed the access token")
 
 				} else {
-					r.log.Info("session does not support refresh token, acquiring new token",
-						zap.String("subject", state.identity.ID),
-						zap.String("email", state.identity.Email))
+					r.log.WithFields(logrus.Fields{
+						"subject": state.identity.ID,
+						"email":   state.identity.Email,
+					}).Info("session does not support refresh token, acquiring new token")
 
 					// we don't have a refresh token, we must perform a login again
 					state.wait = false
@@ -191,9 +196,10 @@ func (r *OAuthProxy) forwardProxyHandler() func(*http.Request, *http.Response) {
 			if state.wait {
 				// set the expiration of the access token within a random 85% of actual expiration
 				duration := getWithin(state.expiration, 0.85)
-				r.log.Info("waiting for expiration of access token",
-					zap.String("token_expiration", state.expiration.Format(time.RFC3339)),
-					zap.String("renewel_duration", duration.String()))
+				r.log.WithFields(logrus.Fields{
+					"token_expiration": state.expiration.Format(time.RFC3339),
+					"renewal_duration": duration.String(),
+				}).Info("waiting for expiration of access token")
 
 				<-time.After(duration)
 			}
