@@ -14,12 +14,12 @@ type TenantHook struct {
 	tenantID string
 }
 
-// Levels returns all levels the hook is activate on
+// Levels returns a logrus.Level slice containing all levels the hook is fired on
 func (h *TenantHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
-// Fire is trigger on log execution
+// Fire is the trigger in which Hook logic lives and is executed upon log entry
 func (h *TenantHook) Fire(e *logrus.Entry) error {
 	e.Data["tenant"] = h.tenantID
 	return nil
