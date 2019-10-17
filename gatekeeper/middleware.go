@@ -236,7 +236,7 @@ func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *rege
 	}
 
 	if _, found := user.claims[claimName]; !found {
-		r.log.Warn("the token does not have the claim", errFields...)
+		r.log.Warn("the token does not have the claim", errFields)
 		return false
 	}
 
@@ -250,7 +250,7 @@ func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *rege
 		r.log.Warn("claim requirement does not match claim in token", append(errFields,
 			zap.String("issued", valueStr),
 			zap.String("required", match.String()),
-		)...)
+		))
 
 		return false
 	}
@@ -267,7 +267,7 @@ func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *rege
 		r.log.Warn("claim requirement does not match any element claim group in token", append(errFields,
 			zap.String("issued", fmt.Sprintf("%v", valueStrs)),
 			zap.String("required", match.String()),
-		)...)
+		))
 
 		return false
 	}
@@ -277,11 +277,11 @@ func (r *OAuthProxy) checkClaim(user *userContext, claimName string, match *rege
 		r.log.Error("unable to extract the claim from token (tried string and strings)", append(errFields,
 			zap.Error(errStr),
 			zap.Error(errStrs),
-		)...)
+		))
 		return false
 	}
 
-	r.log.Warn("unexpected error", errFields...)
+	r.log.Warn("unexpected error", errFields)
 	return false
 }
 

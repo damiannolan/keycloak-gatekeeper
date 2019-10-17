@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 )
 
@@ -34,11 +35,11 @@ type certificationRotation struct {
 	// the privateKeyFile is the path of the private key
 	privateKeyFile string
 	// the logger for this service
-	log *zap.Logger
+	log *logrus.Logger
 }
 
 // newCertificateRotator creates a new certificate
-func newCertificateRotator(cert, key string, log *zap.Logger) (*certificationRotation, error) {
+func newCertificateRotator(cert, key string, log *logrus.Logger) (*certificationRotation, error) {
 	// step: attempt to load the certificate
 	certificate, err := tls.LoadX509KeyPair(cert, key)
 	if err != nil {

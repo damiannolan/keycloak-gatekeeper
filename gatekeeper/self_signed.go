@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 )
 
@@ -39,13 +40,13 @@ type selfSignedCertificate struct {
 	// privateKey is the rsa private key
 	privateKey *rsa.PrivateKey
 	// the logger for this service
-	log *zap.Logger
+	log *logrus.Logger
 	// stopCh is a channel to close off the rotation
 	cancel context.CancelFunc
 }
 
 // newSelfSignedCertificate creates and returns a self signed certificate manager
-func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *zap.Logger) (*selfSignedCertificate, error) {
+func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *logrus.Logger) (*selfSignedCertificate, error) {
 	if len(hostnames) <= 0 {
 		return nil, errors.New("no hostnames specified")
 	}

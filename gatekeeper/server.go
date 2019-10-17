@@ -43,6 +43,7 @@ import (
 	"github.com/pressly/chi/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
+	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +55,7 @@ type OAuthProxy struct {
 	idp            oidc.ProviderConfig
 	idpClient      *http.Client
 	listener       net.Listener
-	log            *zap.Logger
+	log            *logrus.Logger
 	metricsHandler http.Handler
 	router         http.Handler
 	server         *http.Server
@@ -76,11 +77,9 @@ func init() {
 
 // NewProxy create's a new proxy from configuration
 func NewProxy(config *Config) (*OAuthProxy, error) {
+	var err error
 	// create the service logger
-	log, err := createLogger(config)
-	if err != nil {
-		return nil, err
-	}
+	log := createLogger(config)
 
 	log.Info("starting the service", zap.String("prog", prog), zap.String("author", author), zap.String("version", version))
 	svc := &OAuthProxy{
@@ -130,28 +129,38 @@ func NewProxy(config *Config) (*OAuthProxy, error) {
 }
 
 // createLogger is responsible for creating the service logger
-func createLogger(config *Config) (*zap.Logger, error) {
+func createLogger(config *Config) *logrus.Logger {
 	httplog.SetOutput(ioutil.Discard) // disable the http logger
+
+	logger := &logrus.Logger{
+		Out:       os.Stdout,
+		Formatter: newTextFormatter(),
+		Level:     logrus.DebugLevel,
+	}
+
 	if config.DisableAllLogging {
-		return zap.NewNop(), nil
+		logger.SetOutput(ioutil.Discard)
 	}
 
-	c := zap.NewProductionConfig()
-	c.DisableStacktrace = true
-	c.DisableCaller = true
-	// are we enabling json logging?
-	if !config.EnableJSONLogging {
-		c.Encoding = "console"
-	}
-	// are we running verbose mode?
 	if config.Verbose {
-		httplog.SetOutput(os.Stderr)
-		c.DisableCaller = false
-		c.Development = true
-		c.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+		logger.Level = logrus.TraceLevel
 	}
 
-	return c.Build()
+	return logger
+}
+
+func newJSONFormatter() *logrus.JSONFormatter {
+	return &logrus.JSONFormatter{
+		TimestampFormat: time.RFC3339Nano,
+	}
+}
+
+func newTextFormatter() *logrus.TextFormatter {
+	return &logrus.TextFormatter{
+		DisableColors:   true,
+		FullTimestamp:   true,
+		TimestampFormat: time.RFC3339Nano,
+	}
 }
 
 // createReverseProxy creates a reverse proxy
