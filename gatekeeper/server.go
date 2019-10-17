@@ -44,6 +44,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 )
 
@@ -79,12 +80,13 @@ func init() {
 func NewProxy(config *Config) (*OAuthProxy, error) {
 	var err error
 	// create the service logger
-	log := createLogger(config)
+	logger := createLogger(config)
 
-	log.Info("starting the service", zap.String("prog", prog), zap.String("author", author), zap.String("version", version))
+	logger.WithFields(log.Fields{"app": prog, "tenantID": "TENANTID", "version": version}).Info("starting the service")
+	// log.Info("starting the service", zap.String("prog", prog), zap.String("author", author), zap.String("version", version))
 	svc := &OAuthProxy{
 		config:         config,
-		log:            log,
+		log:            logger,
 		metricsHandler: prometheus.Handler(),
 		shutdownCh:     make(chan bool),
 	}
@@ -128,22 +130,41 @@ func NewProxy(config *Config) (*OAuthProxy, error) {
 	return svc, nil
 }
 
+// TenantHook adds the tenantID to each log entry
+type TenantHook struct {
+	TenantID string
+}
+
+// Levels returns all levels the hook is activate on
+func (h *TenantHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+// Fire is trigger on log execution
+func (h *TenantHook) Fire(e *logrus.Entry) error {
+	e.Data["tenantID"] = h.TenantID
+	return nil
+}
+
 // createLogger is responsible for creating the service logger
 func createLogger(config *Config) *logrus.Logger {
 	httplog.SetOutput(ioutil.Discard) // disable the http logger
 
-	logger := &logrus.Logger{
+	logger := &log.Logger{
 		Out:       os.Stdout,
 		Formatter: newTextFormatter(),
-		Level:     logrus.DebugLevel,
+		Level:     log.DebugLevel,
 	}
+
+	logger.AddHook(&TenantHook{TenantID: "myTenantID"})
 
 	if config.DisableAllLogging {
 		logger.SetOutput(ioutil.Discard)
 	}
 
 	if config.Verbose {
-		logger.Level = logrus.TraceLevel
+		logger.SetReportCaller(true)
+		logger.Level = log.TraceLevel
 	}
 
 	return logger
