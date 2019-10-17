@@ -11,7 +11,7 @@ import (
 
 // TenantHook adds the tenantID to each log entry
 type TenantHook struct {
-	TenantID string
+	tenantID string
 }
 
 // Levels returns all levels the hook is activate on
@@ -21,7 +21,7 @@ func (h *TenantHook) Levels() []logrus.Level {
 
 // Fire is trigger on log execution
 func (h *TenantHook) Fire(e *logrus.Entry) error {
-	e.Data["tenantID"] = h.TenantID
+	e.Data["tenant"] = h.tenantID
 	return nil
 }
 
@@ -36,8 +36,7 @@ func createLogger(config *Config) *logrus.Logger {
 		Level:     logrus.DebugLevel,
 	}
 
-	// Add the TenantID as a field on Config
-	logger.AddHook(&TenantHook{TenantID: "myTenantID"})
+	logger.AddHook(&TenantHook{tenantID: config.TenantID})
 
 	if config.DisableAllLogging {
 		logger.SetOutput(ioutil.Discard)

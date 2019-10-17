@@ -347,6 +347,9 @@ type Config struct {
 
 	// DisableAllLogging indicates no logging at all
 	DisableAllLogging bool `json:"disable-all-logging" yaml:"disable-all-logging" usage:"disables all logging to stdout and stderr"`
+
+	// TenantID corresponds to the realm used in the discovery url for oidc provider configuration retrieval
+	TenantID string
 }
 
 // getVersion returns the proxy version

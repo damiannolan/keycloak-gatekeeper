@@ -80,7 +80,7 @@ func NewProxy(config *Config) (*OAuthProxy, error) {
 	// create the service logger
 	log := createLogger(config)
 
-	log.WithFields(logrus.Fields{"app": prog, "tenantID": "TENANTID"}).Info("starting the service")
+	log.WithFields(logrus.Fields{"app": prog, "tenant": config.TenantID}).Info("starting the service")
 	svc := &OAuthProxy{
 		config:         config,
 		log:            log,
