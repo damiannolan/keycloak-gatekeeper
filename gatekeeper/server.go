@@ -44,8 +44,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
-	"go.uber.org/zap"
 )
 
 // OAuthProxy - Bootstrapped Gatekeeper struct
@@ -80,13 +78,12 @@ func init() {
 func NewProxy(config *Config) (*OAuthProxy, error) {
 	var err error
 	// create the service logger
-	logger := createLogger(config)
+	log := createLogger(config)
 
-	logger.WithFields(log.Fields{"app": prog, "tenantID": "TENANTID", "version": version}).Info("starting the service")
-	// log.Info("starting the service", zap.String("prog", prog), zap.String("author", author), zap.String("version", version))
+	log.WithFields(logrus.Fields{"app": prog, "tenantID": "TENANTID"}).Info("starting the service")
 	svc := &OAuthProxy{
 		config:         config,
-		log:            logger,
+		log:            log,
 		metricsHandler: prometheus.Handler(),
 		shutdownCh:     make(chan bool),
 	}
@@ -150,21 +147,21 @@ func (h *TenantHook) Fire(e *logrus.Entry) error {
 func createLogger(config *Config) *logrus.Logger {
 	httplog.SetOutput(ioutil.Discard) // disable the http logger
 
-	logger := &log.Logger{
+	logger := &logrus.Logger{
 		Out:       os.Stdout,
 		Formatter: newTextFormatter(),
-		Level:     log.DebugLevel,
+		Level:     logrus.DebugLevel,
 	}
 
-	logger.AddHook(&TenantHook{TenantID: "myTenantID"})
+	// logger.AddHook(&TenantHook{TenantID: "myTenantID"})
 
 	if config.DisableAllLogging {
 		logger.SetOutput(ioutil.Discard)
 	}
 
 	if config.Verbose {
-		logger.SetReportCaller(true)
-		logger.Level = log.TraceLevel
+		// logger.SetReportCaller(true)
+		logger.Level = logrus.TraceLevel
 	}
 
 	return logger
@@ -186,7 +183,7 @@ func newTextFormatter() *logrus.TextFormatter {
 
 // createReverseProxy creates a reverse proxy
 func (r *OAuthProxy) createReverseProxy() error {
-	r.log.Info("enabled reverse proxy mode, upstream url", zap.String("url", r.config.Upstream))
+	r.log.WithFields(logrus.Fields{"url": r.config.Upstream}).Info("enabled reverse proxy mode, upstream url")
 	if err := r.createUpstreamProxy(r.endpoint); err != nil {
 		return err
 	}
@@ -239,7 +236,7 @@ func (r *OAuthProxy) createReverseProxy() error {
 		e.Get(tokenURL, r.tokenHandler)
 		e.Post(loginURL, r.loginHandler)
 		if r.config.EnableMetrics {
-			r.log.Info("enabled the service metrics middleware", zap.String("path", r.config.WithOAuthURI(metricsURL)))
+			r.log.WithFields(logrus.Fields{"path": r.config.WithOAuthURI(metricsURL)}).Info("enabled the service metrics middleware")
 			e.Get(metricsURL, r.proxyMetricsHandler)
 		}
 	})
@@ -268,10 +265,11 @@ func (r *OAuthProxy) createReverseProxy() error {
 	enableDefaultDeny := r.config.EnableDefaultDeny
 	for _, x := range r.config.Resources {
 		if x.URL[len(x.URL)-1:] == "/" {
-			r.log.Warn("the resource url is not a prefix",
-				zap.String("resource", x.URL),
-				zap.String("change", x.URL),
-				zap.String("amended", strings.TrimRight(x.URL, "/")))
+			r.log.WithFields(logrus.Fields{
+				"resource": x.URL,
+				"change":   x.URL,
+				"amended":  strings.TrimRight(x.URL, "/"),
+			}).Warn("the resource url is not a prefix")
 		}
 		if x.URL == "/*" && r.config.EnableDefaultDeny {
 			switch x.WhiteListed {
@@ -289,7 +287,7 @@ func (r *OAuthProxy) createReverseProxy() error {
 	}
 
 	for _, x := range r.config.Resources {
-		r.log.Info("protecting resource", zap.String("resource", x.String()))
+		r.log.WithFields(logrus.Fields{"resource": x.String()}).Info("protecting resource")
 		e := engine.With(
 			r.authenticationMiddleware(x),
 			r.admissionMiddleware(x),
@@ -305,7 +303,7 @@ func (r *OAuthProxy) createReverseProxy() error {
 	}
 
 	for name, value := range r.config.MatchClaims {
-		r.log.Info("token must contain", zap.String("claim", name), zap.String("value", value))
+		r.log.WithFields(logrus.Fields{"claim": name, "value": value}).Info("token must contain")
 	}
 	if r.config.RedirectionURL == "" {
 		r.log.Warn("no redirection url has been set, will use host headers")
@@ -319,7 +317,7 @@ func (r *OAuthProxy) createReverseProxy() error {
 
 // createForwardingProxy creates a forwarding proxy
 func (r *OAuthProxy) createForwardingProxy() error {
-	r.log.Info("enabling forward signing mode, listening on", zap.String("interface", r.config.Listen))
+	r.log.WithFields(logrus.Fields{"interface": r.config.Listen}).Info("enabling forward signing mode, listening on")
 
 	if r.config.SkipUpstreamTLSVerify {
 		r.log.Warn("tls verification switched off. In forward signing mode it's recommended you verify! (--skip-upstream-tls-verify=false)")
@@ -360,14 +358,14 @@ func (r *OAuthProxy) createForwardingProxy() error {
 			start := ctx.UserData.(time.Time)
 			latency := time.Since(start)
 			latencyMetric.Observe(latency.Seconds())
-			r.log.Info("client request",
-				zap.String("method", resp.Request.Method),
-				zap.String("path", resp.Request.URL.Path),
-				zap.Int("status", resp.StatusCode),
-				zap.Int64("bytes", resp.ContentLength),
-				zap.String("host", resp.Request.Host),
-				zap.String("path", resp.Request.URL.Path),
-				zap.String("latency", latency.String()))
+			r.log.WithFields(logrus.Fields{
+				"method":  resp.Request.Method,
+				"path":    resp.Request.URL.Path,
+				"status":  resp.StatusCode,
+				"bytes":   resp.ContentLength,
+				"host":    resp.Request.Host,
+				"latency": latency.String(),
+			}).Info("client request")
 		}
 
 		return resp
@@ -414,17 +412,17 @@ func (r *OAuthProxy) Run() error {
 	r.waitForShutdown()
 
 	go func() {
-		r.log.Info("keycloak proxy service starting", zap.String("interface", r.config.Listen))
+		r.log.WithFields(logrus.Fields{"interface": r.config.Listen}).Info("keycloak proxy service starting")
 		if err = server.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {
-				r.log.Fatal("failed to start the http service", zap.Error(err))
+				r.log.WithError(err).Fatal("failed to start the http service")
 			}
 		}
 	}()
 
 	// step: are we running http service as well?
 	if r.config.ListenHTTP != "" {
-		r.log.Info("keycloak proxy http service starting", zap.String("interface", r.config.ListenHTTP))
+		r.log.WithFields(logrus.Fields{"interface": r.config.Listen}).Info("keycloak proxy http service starting")
 		httpListener, err := r.createHTTPListener(listenerConfig{
 			listen:        r.config.ListenHTTP,
 			proxyProtocol: r.config.EnableProxyProtocol,
@@ -441,7 +439,7 @@ func (r *OAuthProxy) Run() error {
 		}
 		go func() {
 			if err := httpsvc.Serve(httpListener); err != nil {
-				r.log.Fatal("failed to start the http redirect service", zap.Error(err))
+				r.log.WithError(err).Fatal("failed to start the http redirect service")
 			}
 		}()
 	}
@@ -463,9 +461,9 @@ func (r *OAuthProxy) Shutdown() {
 func (r *OAuthProxy) waitForShutdown() {
 	go func() {
 		<-r.shutdownCh
-		r.log.Info("Shutting down OAuthProxy...")
+		r.log.Info("shutting down keycloak-proxy")
 		if err := r.server.Shutdown(context.Background()); err != nil {
-			r.log.Error("Failed to shutdown OAuthProxy", zap.Error(err))
+			r.log.WithError(err).Error("failed to shutdown keycloak-proxy")
 		}
 		close(r.shutdownCh)
 	}()
@@ -503,7 +501,7 @@ func (r *OAuthProxy) createHTTPListener(config listenerConfig) (net.Listener, er
 				return nil, err
 			}
 		}
-		r.log.Info("listening on unix socket", zap.String("interface", config.listen))
+		r.log.WithFields(logrus.Fields{"interface": config.listen}).Info("listening on unix socket")
 		if listener, err = net.Listen("unix", socket); err != nil {
 			return nil, err
 		}
@@ -515,7 +513,7 @@ func (r *OAuthProxy) createHTTPListener(config listenerConfig) (net.Listener, er
 
 	// does it require proxy protocol?
 	if config.proxyProtocol {
-		r.log.Info("enabling the proxy protocol on listener", zap.String("interface", config.listen))
+		r.log.WithFields(logrus.Fields{"interface": config.listen}).Info("enabling the proxy protocol on listener")
 		listener = &proxyproto.Listener{Listener: listener}
 	}
 
@@ -558,7 +556,7 @@ func (r *OAuthProxy) createHTTPListener(config listenerConfig) (net.Listener, er
 		}
 
 		if config.useSelfSignedTLS {
-			r.log.Info("enabling self-signed tls support", zap.Duration("expiration", r.config.SelfSignedTLSExpiration))
+			r.log.WithFields(logrus.Fields{"expiration": r.config.SelfSignedTLSExpiration}).Info("enabling self-signed tls support")
 
 			rotate, err := newSelfSignedCertificate(r.config.SelfSignedTLSHostnames, r.config.SelfSignedTLSExpiration, r.log)
 			if err != nil {
@@ -569,7 +567,10 @@ func (r *OAuthProxy) createHTTPListener(config listenerConfig) (net.Listener, er
 		}
 
 		if config.useFileTLS {
-			r.log.Info("tls support enabled", zap.String("certificate", config.certificate), zap.String("private_key", config.privateKey))
+			r.log.WithFields(logrus.Fields{
+				"certificate": config.certificate,
+				"private_key": config.privateKey,
+			}).Info("tls support enabled")
 			rotate, err := newCertificateRotator(config.certificate, config.privateKey, r.log)
 			if err != nil {
 				return nil, err
@@ -614,7 +615,7 @@ func (r *OAuthProxy) createUpstreamProxy(upstream *url.URL) error {
 
 	// are we using a unix socket?
 	if upstream != nil && upstream.Scheme == "unix" {
-		r.log.Info("using unix socket for upstream", zap.String("socket", fmt.Sprintf("%s%s", upstream.Host, upstream.Path)))
+		r.log.WithFields(logrus.Fields{"socket": fmt.Sprintf("%s%s", upstream.Host, upstream.Path)}).Info("using unix socket for upstream")
 
 		socketPath := fmt.Sprintf("%s%s", upstream.Host, upstream.Path)
 		dialer = func(network, address string) (net.Conn, error) {
@@ -633,7 +634,7 @@ func (r *OAuthProxy) createUpstreamProxy(upstream *url.URL) error {
 	if r.config.TLSClientCertificate != "" {
 		cert, err := ioutil.ReadFile(r.config.TLSClientCertificate)
 		if err != nil {
-			r.log.Error("unable to read client certificate", zap.String("path", r.config.TLSClientCertificate), zap.Error(err))
+			r.log.WithError(err).Error("unable to read client certificate")
 			return err
 		}
 		pool := x509.NewCertPool()
@@ -645,7 +646,7 @@ func (r *OAuthProxy) createUpstreamProxy(upstream *url.URL) error {
 	{
 		// @check if we have a upstream ca to verify the upstream
 		if r.config.UpstreamCA != "" {
-			r.log.Info("loading the upstream ca", zap.String("path", r.config.UpstreamCA))
+			r.log.WithFields(logrus.Fields{"path": r.config.UpstreamCA}).Info("loading the upstream ca")
 			ca, err := ioutil.ReadFile(r.config.UpstreamCA)
 			if err != nil {
 				return err
@@ -681,17 +682,17 @@ func (r *OAuthProxy) createTemplates() error {
 	var list []string
 
 	if r.config.SignInPage != "" {
-		r.log.Debug("loading the custom sign in page", zap.String("page", r.config.SignInPage))
+		r.log.WithFields(logrus.Fields{"page": r.config.SignInPage}).Debug("loading the custom sign in page")
 		list = append(list, r.config.SignInPage)
 	}
 
 	if r.config.ForbiddenPage != "" {
-		r.log.Debug("loading the custom sign forbidden page", zap.String("page", r.config.ForbiddenPage))
+		r.log.WithFields(logrus.Fields{"page": r.config.ForbiddenPage}).Debug("loading the custom sign forbidden page")
 		list = append(list, r.config.ForbiddenPage)
 	}
 
 	if len(list) > 0 {
-		r.log.Info("loading the custom templates", zap.String("templates", strings.Join(list, ",")))
+		r.log.WithFields(logrus.Fields{"templates": strings.Join(list, ",")}).Info("loading the custom templates")
 		r.templates = template.Must(template.ParseFiles(list...))
 	}
 
@@ -716,7 +717,7 @@ func (r *OAuthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http
 				if r.config.OpenIDProviderProxy != "" {
 					idpProxyURL, err := url.Parse(r.config.OpenIDProviderProxy)
 					if err != nil {
-						r.log.Warn("invalid proxy address for open IDP provider proxy", zap.Error(err))
+						r.log.WithError(err).Warn("invalid proxy address for open IDP provider proxy")
 						return nil, nil
 					}
 					return idpProxyURL, nil
@@ -770,14 +771,15 @@ FetchLoop:
 		case <-timeout:
 			return config, errors.New("failed to retrieve the provider configuration from discovery url")
 		default:
-			r.log.Info("attempting to retrieve configuration discovery url",
-				zap.String("url", r.config.DiscoveryURL),
-				zap.String("timeout", r.config.OpenIDProviderTimeout.String()))
+			r.log.WithFields(logrus.Fields{
+				"url":     r.config.DiscoveryURL,
+				"timeout": r.config.OpenIDProviderTimeout.String(),
+			}).Info("attempting to retrieve configuration discovery url")
 			if config, err = oidc.FetchProviderConfig(hc, r.config.DiscoveryURL); err == nil {
 				r.log.Info("successfully retrieved openid configuration from the discovery")
 				break FetchLoop
 			}
-			r.log.Warn("failed to get provider configuration from discovery", zap.Error(err))
+			r.log.WithError(err).Warn("failed to get provider configuration from discovery")
 			time.Sleep(time.Second * 3)
 		}
 	}

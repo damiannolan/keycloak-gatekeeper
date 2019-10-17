@@ -31,9 +31,9 @@ import (
 	"time"
 
 	"github.com/gambol99/go-oidc/oauth2"
+	"github.com/sirupsen/logrus"
 
 	"github.com/pressly/chi"
-	"go.uber.org/zap"
 )
 
 // getRedirectionURL returns the redirectionURL for the oauth flow
@@ -66,7 +66,7 @@ func (r *OAuthProxy) oauthAuthorizationHandler(w http.ResponseWriter, req *http.
 	}
 	client, err := r.getOAuthClient(r.getRedirectionURL(w, req))
 	if err != nil {
-		r.log.Error("failed to retrieve the oauth client for authorization", zap.Error(err))
+		r.log.WithError(err).Error("failed to retrieve the oauth client for authorization")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -78,10 +78,11 @@ func (r *OAuthProxy) oauthAuthorizationHandler(w http.ResponseWriter, req *http.
 	}
 
 	authURL := client.AuthCodeURL(req.URL.Query().Get("state"), accessType, "")
-	r.log.Debug("incoming authorization request from client address",
-		zap.String("access_type", accessType),
-		zap.String("auth_url", authURL),
-		zap.String("client_ip", req.RemoteAddr))
+	r.log.WithFields(logrus.Fields{
+		"access_type": accessType,
+		"auth_url":    authURL,
+		"client_ip":   req.RemoteAddr,
+	}).Debug("incoming authorization request from client address")
 
 	// step: if we have a custom sign in page, lets display that
 	if r.config.hasCustomSignInPage() {
@@ -111,14 +112,14 @@ func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 
 	client, err := r.getOAuthClient(r.getRedirectionURL(w, req))
 	if err != nil {
-		r.log.Error("unable to create a oauth2 client", zap.Error(err))
+		r.log.WithError(err).Error("unable to create a oauth2 client")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	resp, err := exchangeAuthenticationCode(client, code)
 	if err != nil {
-		r.log.Error("unable to exchange code for access token", zap.Error(err))
+		r.log.WithError(err).Error("unable to exchange code for access token")
 		r.accessForbidden(w, req)
 		return
 	}
@@ -128,7 +129,7 @@ func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 	// to the ID Token.
 	token, identity, err := parseToken(resp.IDToken)
 	if err != nil {
-		r.log.Error("unable to parse id token for identity", zap.Error(err))
+		r.log.WithError(err).Error("unable to parse id token for identity")
 		r.accessForbidden(w, req)
 		return
 	}
@@ -137,12 +138,12 @@ func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 		token = access
 		identity = id
 	} else {
-		r.log.Warn("unable to parse the access token, using id token only", zap.Error(err))
+		r.log.WithError(err).Warn("unable to parse the access token, using id token only")
 	}
 
 	// step: check the access token is valid
 	if err = verifyToken(r.client, token); err != nil {
-		r.log.Error("unable to verify the id token", zap.Error(err))
+		r.log.WithError(err).Error("unable to verify the id token")
 		r.accessForbidden(w, req)
 		return
 	}
@@ -151,16 +152,17 @@ func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 	// step: are we encrypting the access token?
 	if r.config.EnableEncryptedToken {
 		if accessToken, err = encodeText(accessToken, r.config.EncryptionKey); err != nil {
-			r.log.Error("unable to encode the access token", zap.Error(err))
+			r.log.WithError(err).Error("unable to encode the access token")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	}
 
-	r.log.Info("issuing access token for user",
-		zap.String("email", identity.Email),
-		zap.String("expires", identity.ExpiresAt.Format(time.RFC3339)),
-		zap.String("duration", time.Until(identity.ExpiresAt).String()))
+	r.log.WithFields(logrus.Fields{
+		"email":    identity.Email,
+		"expires":  identity.ExpiresAt.Format(time.RFC3339),
+		"duration": time.Until(identity.ExpiresAt).String(),
+	}).Info("issuing access token for user")
 
 	// @metric a token has beeb issued
 	oauthTokensMetric.WithLabelValues("issued").Inc()
@@ -170,7 +172,7 @@ func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 		var encrypted string
 		encrypted, err = encodeText(resp.RefreshToken, r.config.EncryptionKey)
 		if err != nil {
-			r.log.Error("failed to encrypt the refresh token", zap.Error(err))
+			r.log.WithError(err).Error("failed to encrypt the refresh token")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -180,7 +182,7 @@ func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 		switch r.useStore() {
 		case true:
 			if err = r.StoreRefreshToken(token, encrypted); err != nil {
-				r.log.Warn("failed to save the refresh token in the store", zap.Error(err))
+				r.log.WithError(err).Warn("failed to save the refresh token in the store")
 			}
 		default:
 			// notes: not all idp refresh tokens are readable, google for example, so we attempt to decode into
@@ -200,9 +202,10 @@ func (r *OAuthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 	if req.URL.Query().Get("state") != "" {
 		decoded, err := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
 		if err != nil {
-			r.log.Warn("unable to decode the state parameter",
-				zap.String("state", req.URL.Query().Get("state")),
-				zap.Error(err))
+			r.log.WithFields(logrus.Fields{
+				"state": req.URL.Query().Get("state"),
+				"error": err,
+			}).Warn("unable to decode the state parameter")
 		} else {
 			state = string(decoded)
 		}
@@ -267,9 +270,7 @@ func (r *OAuthProxy) loginHandler(w http.ResponseWriter, req *http.Request) {
 		return "", http.StatusOK, nil
 	}()
 	if err != nil {
-		r.log.Error(errorMsg,
-			zap.String("client_ip", req.RemoteAddr),
-			zap.Error(err))
+		r.log.WithField("client_ip", req.RemoteAddr).WithError(err).Error(errorMsg)
 
 		w.WriteHeader(code)
 	}
@@ -316,7 +317,7 @@ func (r *OAuthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 	if r.useStore() {
 		go func() {
 			if err := r.DeleteRefreshToken(user.token); err != nil {
-				r.log.Error("unable to remove the refresh token from store", zap.Error(err))
+				r.log.WithError(err).Error("unable to remove the refresh token from store")
 			}
 		}()
 	}
@@ -351,7 +352,7 @@ func (r *OAuthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 	if revocationURL != "" {
 		client, err := r.client.OAuthClient()
 		if err != nil {
-			r.log.Error("unable to retrieve the openid client", zap.Error(err))
+			r.log.WithError(err).Error("unable to retrieve the openid client")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -363,7 +364,7 @@ func (r *OAuthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 		// step: construct the url for revocation
 		request, err := http.NewRequest(http.MethodPost, revocationURL, bytes.NewBufferString(fmt.Sprintf("refresh_token=%s", identityToken)))
 		if err != nil {
-			r.log.Error("unable to construct the revocation request", zap.Error(err))
+			r.log.WithError(err).Error("unable to construct the revocation request")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -375,7 +376,7 @@ func (r *OAuthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		response, err := client.HttpClient().Do(request)
 		if err != nil {
-			r.log.Error("unable to post to revocation endpoint", zap.Error(err))
+			r.log.WithError(err).Error("unable to post to revocation endpoint")
 			return
 		}
 		oauthLatencyMetric.WithLabelValues("revocation").Observe(time.Since(start).Seconds())
@@ -383,12 +384,13 @@ func (r *OAuthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 		// step: check the response
 		switch response.StatusCode {
 		case http.StatusNoContent:
-			r.log.Info("successfully logged out of the endpoint", zap.String("email", user.email))
+			r.log.WithField("email", user.email).Info("successfully logged out of the endpoint")
 		default:
 			content, _ := ioutil.ReadAll(response.Body)
-			r.log.Error("invalid response from revocation endpoint",
-				zap.Int("status", response.StatusCode),
-				zap.String("response", fmt.Sprintf("%s", content)))
+			r.log.WithFields(logrus.Fields{
+				"status":   response.StatusCode,
+				"response": fmt.Sprint("%s", content),
+			}).Error("invalid response from revocation endpoint")
 		}
 	}
 	// step: should we redirect the user
