@@ -127,60 +127,6 @@ func NewProxy(config *Config) (*OAuthProxy, error) {
 	return svc, nil
 }
 
-// TenantHook adds the tenantID to each log entry
-type TenantHook struct {
-	TenantID string
-}
-
-// Levels returns all levels the hook is activate on
-func (h *TenantHook) Levels() []logrus.Level {
-	return logrus.AllLevels
-}
-
-// Fire is trigger on log execution
-func (h *TenantHook) Fire(e *logrus.Entry) error {
-	e.Data["tenantID"] = h.TenantID
-	return nil
-}
-
-// createLogger is responsible for creating the service logger
-func createLogger(config *Config) *logrus.Logger {
-	httplog.SetOutput(ioutil.Discard) // disable the http logger
-
-	logger := &logrus.Logger{
-		Out:       os.Stdout,
-		Formatter: newTextFormatter(),
-		Level:     logrus.DebugLevel,
-	}
-
-	// logger.AddHook(&TenantHook{TenantID: "myTenantID"})
-
-	if config.DisableAllLogging {
-		logger.SetOutput(ioutil.Discard)
-	}
-
-	if config.Verbose {
-		// logger.SetReportCaller(true)
-		logger.Level = logrus.TraceLevel
-	}
-
-	return logger
-}
-
-func newJSONFormatter() *logrus.JSONFormatter {
-	return &logrus.JSONFormatter{
-		TimestampFormat: time.RFC3339Nano,
-	}
-}
-
-func newTextFormatter() *logrus.TextFormatter {
-	return &logrus.TextFormatter{
-		DisableColors:   true,
-		FullTimestamp:   true,
-		TimestampFormat: time.RFC3339Nano,
-	}
-}
-
 // createReverseProxy creates a reverse proxy
 func (r *OAuthProxy) createReverseProxy() error {
 	r.log.WithFields(logrus.Fields{"url": r.config.Upstream}).Info("enabled reverse proxy mode, upstream url")

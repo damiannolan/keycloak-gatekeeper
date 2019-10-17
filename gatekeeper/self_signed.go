@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"go.uber.org/zap"
 )
 
 type selfSignedCertificate struct {
@@ -55,7 +54,7 @@ func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *log
 	}
 
 	// @step: generate a certificate pair
-	log.Info("generating a private key for self-signed certificate", zap.String("common_name", hostnames[0]))
+	log.WithField("common_name", hostnames[0]).Info("generating a private key for self-signed certificate")
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -90,8 +89,7 @@ func newSelfSignedCertificate(hostnames []string, expiry time.Duration, log *log
 // rotate is responsible for rotation the certificate
 func (c *selfSignedCertificate) rotate(ctx context.Context) error {
 	go func() {
-		c.log.Info("starting the self-signed certificate rotation",
-			zap.Duration("expiration", c.expiration))
+		c.log.WithField("expiration", c.expiration).Info("starting the self-signed certificate rotation")
 
 		for {
 			expires := time.Now().Add(c.expiration).Add(-5 * time.Minute)
@@ -102,7 +100,10 @@ func (c *selfSignedCertificate) rotate(ctx context.Context) error {
 				return
 			case <-time.After(ticker):
 			}
-			c.log.Info("going to sleep until required for rotation", zap.Time("expires", expires), zap.Duration("duration", expires.Sub(time.Now())))
+			c.log.WithFields(logrus.Fields{
+				"expires":  expires,
+				"duration": expires.Sub(time.Now()),
+			}).Info("going to sleep until required for rotation")
 
 			// @step: got to sleep until we need to rotate
 			time.Sleep(expires.Sub(time.Now()))

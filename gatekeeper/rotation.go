@@ -23,7 +23,6 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/sirupsen/logrus"
-	"go.uber.org/zap"
 )
 
 type certificationRotation struct {
@@ -56,9 +55,10 @@ func newCertificateRotator(cert, key string, log *logrus.Logger) (*certification
 
 // watch is responsible for adding a file notification and watch on the files for changes
 func (c *certificationRotation) watch() error {
-	c.log.Info("adding a file watch on the certificates, certificate",
-		zap.String("certificate", c.certificateFile),
-		zap.String("private_key", c.privateKeyFile))
+	c.log.WithFields(logrus.Fields{
+		"certificate": c.certificateFile,
+		"private_key": c.privateKeyFile,
+	}).Info("adding a file watch on the certificates, certificate")
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -86,9 +86,7 @@ func (c *certificationRotation) watch() error {
 					// step: reload the certificate
 					certificate, err := tls.LoadX509KeyPair(c.certificateFile, c.privateKeyFile)
 					if err != nil {
-						c.log.Error("unable to load the updated certificate",
-							zap.String("filename", event.Name),
-							zap.Error(err))
+						c.log.WithField("filename", event.Name).WithError(err).Error("unable to load the updated certificate")
 					}
 					// @metric inform of the rotation
 					certificateRotationMetric.Inc()
@@ -98,7 +96,7 @@ func (c *certificationRotation) watch() error {
 					c.log.Info("replacing the server certifacte with updated version")
 				}
 			case err := <-watcher.Errors:
-				c.log.Error("received an error from the file watcher", zap.Error(err))
+				c.log.WithError(err).Error("received an error from the file watcher")
 			}
 		}
 	}()

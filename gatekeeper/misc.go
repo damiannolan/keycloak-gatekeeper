@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gambol99/go-oidc/jose"
-	"go.uber.org/zap"
 )
 
 // filterCookies is responsible for censoring any cookies we don't want sent
@@ -75,7 +74,7 @@ func (r *OAuthProxy) accessForbidden(w http.ResponseWriter, req *http.Request) c
 	if r.config.hasCustomForbiddenPage() {
 		name := path.Base(r.config.ForbiddenPage)
 		if err := r.Render(w, name, r.config.Tags); err != nil {
-			r.log.Error("failed to render the template", zap.Error(err), zap.String("template", name))
+			r.log.WithField("template", name).WithError(err).Error("failed to render the template")
 		}
 	}
 

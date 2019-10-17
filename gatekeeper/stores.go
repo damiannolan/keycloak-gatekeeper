@@ -20,7 +20,6 @@ import (
 	"net/url"
 
 	"github.com/gambol99/go-oidc/jose"
-	"go.uber.org/zap"
 )
 
 // createStorage creates the store client for use
@@ -54,7 +53,7 @@ func (r *OAuthProxy) StoreRefreshToken(token jose.JWT, value string) error {
 	return r.store.Set(getHashKey(&token), value)
 }
 
-// Get retrieves a token from the store, the key we are using here is the access token
+// GetRefreshToken retrieves a token from the store, the key we are using here is the access token
 func (r *OAuthProxy) GetRefreshToken(token jose.JWT) (string, error) {
 	// step: the key is the access token
 	v, err := r.store.Get(getHashKey(&token))
@@ -71,7 +70,7 @@ func (r *OAuthProxy) GetRefreshToken(token jose.JWT) (string, error) {
 // DeleteRefreshToken removes a key from the store
 func (r *OAuthProxy) DeleteRefreshToken(token jose.JWT) error {
 	if err := r.store.Delete(getHashKey(&token)); err != nil {
-		r.log.Error("unable to delete token", zap.Error(err))
+		r.log.WithError(err).Error("unable to delete token")
 
 		return err
 	}
@@ -79,7 +78,7 @@ func (r *OAuthProxy) DeleteRefreshToken(token jose.JWT) error {
 	return nil
 }
 
-// Close is used to close off any resources
+// CloseStore is used to close off any resources
 func (r *OAuthProxy) CloseStore() error {
 	if r.store != nil {
 		return r.store.Close()
